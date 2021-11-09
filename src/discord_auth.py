@@ -37,6 +37,8 @@ def override_page(base_asset_path: str, page: str):
         log.error("Unable to replace {} template".format(page))
 
 # Routes
+
+
 @discord_blueprint.route("/discord/oauth", methods=["GET"])
 @ratelimit(method="GET", limit=10, interval=10)
 def discord_oauth_login():
@@ -95,6 +97,7 @@ def discord_oauth_callback():
                 )
                 discord_user = DiscordUser(
                     id=user_json["id"],
+                    ctf_user_id=user.id,
                     username=user_json["username"],
                     discriminator=user_json["discriminator"],
                     avatar_hash=user_json["avatar"],
@@ -110,6 +113,7 @@ def discord_oauth_callback():
             if not discord_user:
                 discord_user = DiscordUser(
                     id=user_json["id"],
+                    ctf_user_id=user.id,
                     username=user_json["username"],
                     discriminator=user_json["discriminator"],
                     avatar_hash=user_json["avatar"],
@@ -178,7 +182,7 @@ def setup_oauth(config):
         client_id=config["client_id"],
         client_secret=config["client_secret"],
         scope=config["scope"],
-        redirect_uri="https://{}/discord/oauth_callback".format(config["domain"]),
+        redirect_uri="{}/discord/oauth_callback".format(config["domain"]),
         discord_api_url=config["base_discord_api_url"],
         plugin_name=plugin_name
     )
