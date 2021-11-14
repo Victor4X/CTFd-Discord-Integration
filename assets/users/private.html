@@ -18,16 +18,14 @@
 				</h2>
 			{% endif %}
 
-			{% if integrations.mlc() and user.oauth_id %}
-				<a href="https://majorleaguecyber.org/u/{{ user.name }}">
-					<h3><span class="badge badge-primary">Official</span></h3>
-				</a>
-			{% endif %}
-
             {% if user.oauth_id %}
                 <h3>
                     <span class="badge badge-primary"> Discord </span>
                 </h3>
+			{% else %}
+				<a class="btn btn-secondary btn-lg btn-block" href="/discord/oauth">
+					Connect to discord
+				</a>
             {% endif %}
 
 			{% if user.affiliation %}
