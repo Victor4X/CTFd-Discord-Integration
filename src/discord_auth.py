@@ -3,9 +3,13 @@ from CTFd.plugins import register_plugin_assets_directory, override_template
 from CTFd.utils.decorators import ratelimit
 from CTFd.models import Users, db
 from CTFd.utils.security.auth import login_user
+from CTFd.utils.decorators import authed_only
+from CTFd.utils.user import get_current_user
 
 # External module imports
 from flask import request, session, Blueprint, redirect
+from flask_restx import Api
+
 import os
 import logging
 import json
@@ -13,7 +17,7 @@ import json
 # Local module imports
 from .discord_oauth import Discord_Oauth
 from .discord_database import DiscordUser
-
+from .discord_api import discord_namespace
 # Global variables
 # Used primarily due to flask routed functions being unable to use class "self" reflections
 plugin_name = "Discord_Oauth"
@@ -41,6 +45,7 @@ def override_page(base_asset_path: str, page: str):
 
 @discord_blueprint.route("/discord/oauth", methods=["GET"])
 @ratelimit(method="GET", limit=10, interval=10)
+@authed_only
 def discord_oauth_login():
     """
     Configures Discord Oauth and redirects to Discord Login
@@ -48,13 +53,18 @@ def discord_oauth_login():
     :return: Redirect to Discord's OAuth2 login page
     """
     global discord_oauth
+    user = get_current_user()
+
     log.debug("Session: [{}]".format(session))
     log.debug("OAuth: [{}]".format(str(discord_oauth)))
+    print(f'Received {user.id}')
+    # Passing user_id over state is pretty sus
     return redirect(discord_oauth.gen_auth_url())
 
 
 @discord_blueprint.route("/discord/oauth_callback", methods=["GET", "POST"])
 @ratelimit(method="POST", limit=10, interval=5)
+@authed_only
 def discord_oauth_callback():
     """
     Callback response configured to come from Discord's OAuth2 redirect
@@ -66,54 +76,28 @@ def discord_oauth_callback():
     log.debug("OAuth Response Code: [{}]".format(request.args.get("code")))
     global discord_oauth
     token = discord_oauth.get_access_token(request.args.get("code"))
+    user = get_current_user()
+
     log.debug("token=[{}]".format(token))
     user_json = discord_oauth.get_user_info(token)
     log.debug("User data: [{}]".format(str(user_json)))
     # process user info/login/etc
     if user_json:
         # lookup by email
-        user = Users.query.filter_by(email=user_json["email"]).first()
-        discord_user = DiscordUser.query.filter_by(id=user_json["id"]).first()
+        discord_user = DiscordUser.query.filter_by(id=user.id).first()
         if user is None:
-            # Check if user changed email
-            if discord_user:
-                user = Users.query.filter_by(email=discord_user.email)
-                if user:
-                    user.email = user_json["email"]
-                    discord_user.email = user_json["email"]
-                    db.session.commit()
-                else:
-                    log.error("Login failed: user[{user}], discord_user[{d_user}], \
-                        oauth[{user_json}]".format(user=user, d_user=discord_user,
-                                                   user_json=user_json))
-                    return "Error logging in via Discord Oauth2"
-            else:
-                # Create new user
-                user = Users(
-                    name=user_json["username"],
-                    email=user_json["email"],
-                    oauth_id=user_json["id"],
-                    verified=user_json["verified"]
-                )
-                discord_user = DiscordUser(
-                    id=user_json["id"],
-                    ctf_user_id=user.id,
-                    username=user_json["username"],
-                    discriminator=user_json["discriminator"],
-                    avatar_hash=user_json["avatar"],
-                    mfa_enabled=user_json["mfa_enabled"],
-                    verified=user_json["verified"],
-                    email=user_json["email"]
-                )
-                db.session.add(user)
-                db.session.add(discord_user)
-                db.session.commit()
+            # User doesn't exist, this shouldn't happen
+            log.error("Login failed: user[{user}], discord_user[{d_user}], \
+                oauth[{user_json}]".format(user=user, d_user=discord_user,
+                                           user_json=user_json))
+            return "Error connecting account via Discord Oauth2 - user ID doesn't exist"
+
         else:
             # Create Discord association if does not exist (legacy support)
             if not discord_user:
                 discord_user = DiscordUser(
-                    id=user_json["id"],
-                    ctf_user_id=user.id,
+                    id=user.id,
+                    discord_id=user_json["id"],
                     username=user_json["username"],
                     discriminator=user_json["discriminator"],
                     avatar_hash=user_json["avatar"],
@@ -121,13 +105,21 @@ def discord_oauth_callback():
                     verified=user_json["verified"],
                     email=user_json["email"]
                 )
+                # Connect CTFd -> discord
+                user.oauth_id = user.id  # This marks that the discord association was created
+                # Connect discord -> CTFd
                 db.session.add(discord_user)
+                db.session.add(user)
                 db.session.commit()
-        # Login
-        login_user(user)
+            else:
+                log.error("Login failed: user[{user}], discord_user[{d_user}], \
+                oauth[{user_json}]".format(user=user, d_user=discord_user,
+                                           user_json=user_json))
+                # TODO allow people to change discord association
+                return "Error connecting account via Discord Oauth2 - discord association already created"
     else:
         return "Error logging in via Discord OAuth2"
-    return redirect('/challenges')
+    return redirect('/user')
 
 
 def check_debug_mode(debug: bool):
@@ -212,7 +204,12 @@ def load(app):
     app.db.create_all()
 
     # Registration
-    override_page(base_asset_path, "login.html")
     override_page(base_asset_path, "users/private.html")
     app.register_blueprint(discord_blueprint)
     log.info("Discord OAuth2 URL -> https://{}/discord/oauth_callback".format(config["domain"]))
+
+    # API Routes
+    api_blueprint = Blueprint("discord_api", __name__)
+    discord_api = Api(api_blueprint, version="v1", doc=app.config.get("SWAGGER_UI"))
+    discord_api.add_namespace(discord_namespace, "/discord")
+    app.register_blueprint(api_blueprint, url_prefix="/api/v1")

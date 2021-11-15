@@ -20,7 +20,10 @@
 
             {% if user.oauth_id %}
                 <h3>
-                    <span class="badge badge-primary"> Discord </span>
+					<span class="badge badge-primary">
+						Discord
+						<a href="/api/v1/discord/delete" style="color: #b91313; margin-left: 0.5em;">✕</a>
+					</span>
                 </h3>
 			{% else %}
 				<a class="btn btn-secondary btn-lg btn-block" href="/discord/oauth">
