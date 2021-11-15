@@ -1,18 +1,20 @@
-# CTFD-Discord-Auth
+# CTFD-Discord-Integration
 
-### Configuration
-
-Inside `config.json`, set `domain` to your CTFd url.
-
-E.g. `"domain": "http://172.31.217.147:8000",`
-
-Then add this url to discord, e.g. `http://172.31.217.147:8000/discord/oauth_callback`.
-
-Additionally, set `client_id` and `client_secret`.
-
+A Discord OAUTH Plugin to associate CTFd users with discord accounts. Note this does not replace login.
 ### Setup
 
-+ Place project in `CTFd/CTFd/plugins` and restart CTFd
-+ Thats it!!**
++ Clone project and place in `CTFd/CTFd/plugins` and restart CTFd 
++ Update `config.json` with your discord token values.
++ Add `http://<URL>/discord/oauth_callback` to discord OAUTH routes
 
-**I think
+### Screenshots
+
+##### API Access
+![api.png](img/api.png)
+
+##### Badge
+
+![badge.png](img/badge.png)
+
+##### Login Button
+![profile.png](img/profile.png)
