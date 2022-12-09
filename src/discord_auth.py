@@ -218,6 +218,8 @@ def load(app):
 
     # Registration
     override_page(base_asset_path, "users/private.html")
+    override_page(base_asset_path, "users/public.html")
+    override_page(base_asset_path, "users/users.html")
     override_page(base_asset_path, "scoreboard.html")
     app.register_blueprint(discord_blueprint)
     log.info("Discord OAuth2 URL -> https://{}/discord/oauth_callback".format(config["domain"]))
