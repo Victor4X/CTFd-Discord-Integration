@@ -39,12 +39,12 @@
 
                       {% if standing.oauth_id %}
                         {% if Configs.user_mode == 'teams' %}
-                          <a href="https://discord.com/users/{{ user.oauth_id }}">Discord</a>
-                            <span class="badge bg-primary ms-2">Official</span>
+                          <a href="{{ generate_discord_url(standing.oauth_id) }}">
+                            <span class="badge bg-primary ms-2">{{ generate_discord_username(standing.oauth_id) }}</span>
                           </a>
                         {% elif Configs.user_mode == 'users' %}
-                          <a href="https://discord.com/users/{{ user.oauth_id }}">Discord</a>
-                            <span class="badge bg-primary ms-2">Official</span>
+                          <a href="{{ generate_discord_url(standing.oauth_id) }}">
+                            <span class="badge bg-primary ms-2">{{ generate_discord_username(standing.oauth_id) }}</span>
                           </a>
                         {% endif %}
                       {% endif %}

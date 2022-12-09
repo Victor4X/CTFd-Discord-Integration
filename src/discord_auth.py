@@ -186,7 +186,7 @@ def generate_discord_url(oauth_id):
     else:
         return ""
 
-def generate_discord_name(oauth_id):
+def generate_discord_username(oauth_id):
     discord_user = DiscordUser.query.filter_by(id=oauth_id).first()
     if discord_user:
         return "{}#{}".format(discord_user.username, discord_user.discriminator)
@@ -230,4 +230,4 @@ def load(app):
 
     # Jinja functions
     app.jinja_env.globals.update(generate_discord_url=generate_discord_url)
-    app.jinja_env.globals.update(generate_discord_name=generate_discord_name)
+    app.jinja_env.globals.update(generate_discord_username=generate_discord_username)
