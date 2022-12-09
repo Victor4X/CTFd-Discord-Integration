@@ -179,6 +179,19 @@ def setup_oauth(config):
         plugin_name=plugin_name
     )
 
+def generate_discord_url(oauth_id):
+    discord_user = DiscordUser.query.filter_by(id=oauth_id).first()
+    if discord_user:
+        return "https://discordapp.com/users/{}".format(discord_user.discord_id)
+    else:
+        return ""
+
+def generate_discord_name(oauth_id):
+    discord_user = DiscordUser.query.filter_by(id=oauth_id).first()
+    if discord_user:
+        return "{}#{}".format(discord_user.username, discord_user.discriminator)
+    else:
+        return ""
 
 # Load plugin into CTFd
 def load(app):
@@ -205,6 +218,7 @@ def load(app):
 
     # Registration
     override_page(base_asset_path, "users/private.html")
+    override_page(base_asset_path, "scoreboard.html")
     app.register_blueprint(discord_blueprint)
     log.info("Discord OAuth2 URL -> https://{}/discord/oauth_callback".format(config["domain"]))
 
@@ -213,3 +227,7 @@ def load(app):
     discord_api = Api(api_blueprint, version="v1", doc=app.config.get("SWAGGER_UI"))
     discord_api.add_namespace(discord_namespace, "/discord")
     app.register_blueprint(api_blueprint, url_prefix="/api/v1")
+
+    # Jinja functions
+    app.jinja_env.globals.update(generate_discord_url=generate_discord_url)
+    app.jinja_env.globals.update(generate_discord_name=generate_discord_name)

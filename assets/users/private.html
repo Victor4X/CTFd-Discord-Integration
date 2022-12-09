@@ -20,11 +20,10 @@
           <h3 class="d-inline-block mx-1">
 
             <span class="badge rounded-pill bg-primary">
-              <a href="https://discord.com/users/{{ user.oauth_id }}">Discord</a>
-              <a href="/api/v1/discord/delete" style="color: #b91313; margin-left: 0.5em;">✕</a>
+              <a href="{{ generate_discord_url(standing.oauth_id) }}">Discord</a>
+              <a href="/api/v1/discord/delete" style="color: #b91313; margin-left: 0.5em;" title="Remove Integration">✕</a>
             </span>
           </h3>
-        {% endif %}
         {% else %}
           <a class="btn btn-secondary btn-lg btn-block" href="/discord/oauth">
             Connect to discord
