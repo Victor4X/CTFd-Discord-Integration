@@ -38,6 +38,7 @@ class DiscordUserAPIDelete(Resource):
         },
     )
     def get(self):
+        return "This endpoint is disabled."
         """
         Deletes Discord Association
 
@@ -70,6 +71,7 @@ class DiscordUserAPI(Resource):
         },
     )
     def get(self, id):
+        return "This endpoint is disabled."
         user = DiscordUser.query.filter_by(discord_id=id).first_or_404()
         response = {}
 
