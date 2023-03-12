@@ -22,7 +22,7 @@ from sqlalchemy.sql import or_, and_, any_
 
 discord_namespace = Namespace('discord', description="Endpoint to retrieve users by discord ID")
 
-
+# /api/v1/discord/delete
 @discord_namespace.route("/delete", methods=["GET"])
 class DiscordUserAPIDelete(Resource):
 

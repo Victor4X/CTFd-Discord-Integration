@@ -2,12 +2,14 @@
 from CTFd.plugins import register_plugin_assets_directory, override_template
 from CTFd.utils.decorators import ratelimit
 from CTFd.models import Users, db
+from CTFd.utils import validators
 from CTFd.utils.security.auth import login_user
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
+import random
 
 # External module imports
-from flask import request, session, Blueprint, redirect
+from flask import request, session, Blueprint, redirect, render_template
 from flask_restx import Api
 
 import os
@@ -40,12 +42,25 @@ def override_page(base_asset_path: str, page: str):
     except OSError:
         log.error("Unable to replace {} template".format(page))
 
+def serve_template(base_asset_path: str, page: str):
+    """
+    Serves a template from the plugin's assets directory
+
+    :base_asset_path: Path to the plugin assets directory on the filesystem
+    :page: Page to serve from the assets directory
+    :return: Rendered template
+    """
+    template_path = os.path.join(base_asset_path, page)
+    try:
+        return render_template(template_path)
+    except OSError:
+        log.error("Unable to serve {} template".format(page))
+
 # Routes
 
 
 @discord_blueprint.route("/discord/oauth", methods=["GET"])
 @ratelimit(method="GET", limit=10, interval=10)
-@authed_only
 def discord_oauth_login():
     """
     Configures Discord Oauth and redirects to Discord Login
@@ -53,18 +68,15 @@ def discord_oauth_login():
     :return: Redirect to Discord's OAuth2 login page
     """
     global discord_oauth
-    user = get_current_user()
 
     log.debug("Session: [{}]".format(session))
     log.debug("OAuth: [{}]".format(str(discord_oauth)))
-    print(f'Received {user.id}')
-    # Passing user_id over state is pretty sus
+
     return redirect(discord_oauth.gen_auth_url())
 
 
 @discord_blueprint.route("/discord/oauth_callback", methods=["GET", "POST"])
 @ratelimit(method="POST", limit=10, interval=5)
-@authed_only
 def discord_oauth_callback():
     """
     Callback response configured to come from Discord's OAuth2 redirect
@@ -76,49 +88,60 @@ def discord_oauth_callback():
     log.debug("OAuth Response Code: [{}]".format(request.args.get("code")))
     global discord_oauth
     token = discord_oauth.get_access_token(request.args.get("code"))
-    user = get_current_user()
-
     log.debug("token=[{}]".format(token))
     user_json = discord_oauth.get_user_info(token)
     log.debug("User data: [{}]".format(str(user_json)))
-    # process user info/login/etc
+    # Process user info/login/etc
     if user_json:
-        # lookup by email
-        discord_user = DiscordUser.query.filter_by(id=user.id).first()
-        if user is None:
-            # User doesn't exist, this shouldn't happen
-            log.error("Login failed: user[{user}], discord_user[{d_user}], \
-                oauth[{user_json}]".format(user=user, d_user=discord_user,
-                                           user_json=user_json))
-            return "Error connecting account via Discord Oauth2 - user ID doesn't exist"
-
-        else:
-            # Create Discord association if does not exist (legacy support)
-            if not discord_user:
-                discord_user = DiscordUser(
-                    id=user.id,
-                    discord_id=user_json["id"],
-                    username=user_json["username"],
-                    discriminator=user_json["discriminator"],
-                    avatar_hash=user_json["avatar"],
-                    mfa_enabled=user_json["mfa_enabled"],
-                    verified=user_json["verified"],
-                    email=user_json["email"]
-                )
-                # Connect CTFd -> discord
-                user.oauth_id = user.id  # This marks that the discord association was created
-                # Connect discord -> CTFd
+        # Lookup previous by discord id
+        discord_user = DiscordUser.query.filter_by(discord_id=user_json["id"]).first()
+        # If discord user exists, log them in
+        if discord_user:
+            log.debug("User already exists in database, logging in")
+            user = Users.query.filter_by(id=discord_user.id).first()
+            if user:
                 db.session.add(discord_user)
                 db.session.add(user)
                 db.session.commit()
+                db.session.flush()
+                login_user(user)
+                if request.args.get("next") and validators.is_safe_url(
+                    request.args.get("next")
+                ):
+                    return redirect(request.args.get("next"))
+                return redirect("/user")
             else:
-                log.error("Login failed: user[{user}], discord_user[{d_user}], \
-                oauth[{user_json}]".format(user=user, d_user=discord_user,
-                                           user_json=user_json))
-                # TODO allow people to change discord association
-                return "Error connecting account via Discord Oauth2 - discord association already created"
+                log.error("User does not exist in database, but discord user does")
+                return "Error connecting account via Discord Oauth2 - user does not exist in database"
+        # If not, create a new ctfd user
+        # Create CTFd user from Discord user
+        name = user_json["username"]
+        email_address = f"{user_json['id']}@discord.com"
+        password = random.getrandbits(128)
+        user = Users(name=name, email=email_address, password=password)
+        db.session.add(user)
+        db.session.commit()
+        db.session.flush()
+        login_user(user)
+        # Connect discord -> CTFd
+        discord_user = DiscordUser(
+            id=user.id,
+            discord_id=user_json["id"],
+            username=user_json["username"],
+            discriminator=user_json["discriminator"],
+            avatar_hash=user_json["avatar"],
+            mfa_enabled=user_json["mfa_enabled"],
+            verified=user_json["verified"],
+            email=user_json["email"]
+        )
+        # Connect CTFd -> discord
+        db.session.add(discord_user)
+        db.session.add(user)
+        db.session.commit()
+        db.session.flush()
     else:
-        return "Error logging in via Discord OAuth2"
+        log.error("Error getting user info from Discord")
+        return "Error getting user info from Discord"
     return redirect('/user')
 
 
@@ -201,6 +224,8 @@ def load(app):
     :app: CTFd flask insert
     :return: None
     """
+
+
     # Basic Setup
     config = load_config()
     check_debug_mode(string_to_bool(config["debug"]))
@@ -217,10 +242,14 @@ def load(app):
     app.db.create_all()
 
     # Registration
-    override_page(base_asset_path, "users/private.html")
-    override_page(base_asset_path, "users/public.html")
-    override_page(base_asset_path, "users/users.html")
-    override_page(base_asset_path, "scoreboard.html")
+    # override_page(base_asset_path, "users/private.html")
+    # override_page(base_asset_path, "users/public.html")
+    # override_page(base_asset_path, "users/users.html")
+    # override_page(base_asset_path, "scoreboard.html")
+    @app.route('/login-disc', methods=['GET'])
+    def login_disc():
+        return redirect('/discord/oauth')
+    
     app.register_blueprint(discord_blueprint)
     log.info("Discord OAuth2 URL -> https://{}/discord/oauth_callback".format(config["domain"]))
 
