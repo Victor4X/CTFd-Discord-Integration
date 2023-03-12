@@ -90,9 +90,18 @@ def discord_oauth_callback():
     token = discord_oauth.get_access_token(request.args.get("code"))
     log.debug("token=[{}]".format(token))
     user_json = discord_oauth.get_user_info(token)
-    log.debug("User data: [{}]".format(str(user_json)))
+    user_guilds = discord_oauth.get_user_guilds(token)
+    allowed_guilds = discord_oauth.allowed_guilds
     # Process user info/login/etc
     if user_json:
+        log.debug("User data: [{}]".format(str(user_json)))
+        if len(allowed_guilds) > 0:
+            # Check if user is in allowed guilds
+            if not any(guild["id"] in allowed_guilds for guild in user_guilds):
+                log.info("Unauthorized user attempted to login via Discord Oauth2")
+                return "Error logging in via Discord Oauth2 - user is not in an allowed guild"
+            else:
+                log.debug("User is in an allowed guild")
         # Lookup previous by discord id
         discord_user = DiscordUser.query.filter_by(discord_id=user_json["id"]).first()
         # If discord user exists, log them in
@@ -199,7 +208,8 @@ def setup_oauth(config):
         scope=config["scope"],
         redirect_uri="{}/discord/oauth_callback".format(config["domain"]),
         discord_api_url=config["base_discord_api_url"],
-        plugin_name=plugin_name
+        plugin_name=plugin_name,
+        allowed_guilds=config["allowed_guilds"],
     )
 
 def generate_discord_url(oauth_id):

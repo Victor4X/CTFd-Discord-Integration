@@ -11,10 +11,12 @@ class Discord_Oauth(object):
     client_id = ""
     client_secret = ""
     scope = ""
+    allowed_guilds = []
     redirect_uri = ""
     discord_oauth_url = ""
 
-    def __init__(self, client_id: str, client_secret: str, scope: list, redirect_uri: str,
+
+    def __init__(self, client_id: str, client_secret: str, scope: list, allowed_guilds: list, redirect_uri: str,
                  discord_api_url: str, plugin_name: str):
         """
         Initialization for Discord_Oauth class, sets class variables and logger.
@@ -25,6 +27,7 @@ class Discord_Oauth(object):
         self.client_id = client_id
         self.client_secret = client_secret
         self.scope = "%20".join(str(perm) for perm in scope)
+        self.allowed_guilds = allowed_guilds
         self.redirect_uri = redirect_uri
         self.discord_api_url = discord_api_url
         self.discord_oauth_url = f"{discord_api_url}/oauth2"
@@ -76,6 +79,22 @@ class Discord_Oauth(object):
         }
         user_obj = requests.get(url=url, headers=headers)
         return user_obj.json()
+    
+    def get_user_guilds(self, access_token):
+        """
+        Get user's Discord guilds from API endpoint
+
+        :access_token: Authorization token for the user
+        :return: JSON object of a users guilds.
+        """
+        url = f"{self.discord_api_url}/users/@me/guilds"
+        self.log.debug("url: [{}]".format(url))
+        self.log.debug("access_token: [{}]".format(access_token))
+        headers = {
+            "Authorization": "Bearer {}".format(access_token)
+        }
+        guilds_obj = requests.get(url=url, headers=headers)
+        return guilds_obj.json()
 
     def gen_auth_url(self):
         """
