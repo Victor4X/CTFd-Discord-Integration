@@ -256,6 +256,10 @@ def load(app):
     # override_page(base_asset_path, "users/public.html")
     # override_page(base_asset_path, "users/users.html")
     # override_page(base_asset_path, "scoreboard.html")
+    override_page(base_asset_path, "components/navbar.html")
+    # dir_path = os.path.dirname(os.path.realpath(__file__))
+    # template_path = os.path.join(f"{dir_path}/../assets/components/", 'navbar.html')
+    # override_template('components/navbar.html', open(template_path).read())
     @app.route('/login-disc', methods=['GET'])
     def login_disc():
         return redirect('/discord/oauth')
