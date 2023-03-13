@@ -140,8 +140,8 @@ def discord_oauth_callback():
             discriminator=user_json["discriminator"],
             avatar_hash=user_json["avatar"],
             mfa_enabled=user_json["mfa_enabled"],
-            verified=user_json["verified"],
-            email=email_address
+            verified=user_json.get("verified",0), # Checks whether the email on the account has been verified, but not a requirement right now
+            email=user_json.get("email",email_address)
         )
         # Connect CTFd -> discord
         db.session.add(discord_user)
